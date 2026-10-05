@@ -18,6 +18,8 @@ from collections.abc import AsyncIterator, Iterable
 from typing import Any, Protocol, runtime_checkable
 
 __all__ = [
+    "AudioSink",
+    "AudioSource",
     "LanguageModel",
     "Message",
     "SpeechToText",
@@ -30,6 +32,40 @@ __all__ = [
 
 # A chat message, in the shape every provider agrees on.
 Message = dict[str, Any]
+
+
+@runtime_checkable
+class AudioSource(Protocol):
+    """Where audio comes from: a microphone, or a file when testing.
+
+    Audio arrives as a stream of small frames rather than one finished
+    recording. Push-to-talk could manage with a single blob, but the voice
+    activity detector has to decide *while you are speaking* where the sentence
+    ends, so it needs the frames as they come. Starting here avoids rewriting
+    this module later.
+
+    Each frame is `frame_ms` of 16-bit signed little-endian mono PCM.
+    """
+
+    sample_rate: int
+    frame_ms: int
+
+    def frames(self) -> AsyncIterator[bytes]:
+        """Yield audio frames until the source is closed."""
+        ...
+
+
+@runtime_checkable
+class AudioSink(Protocol):
+    """Where audio goes: the speaker, or a list when testing."""
+
+    async def play(self, pcm: bytes, sample_rate: int) -> None:
+        """Queue audio for playback and return immediately."""
+        ...
+
+    async def drain(self) -> None:
+        """Wait until everything queued has finished playing."""
+        ...
 
 
 @runtime_checkable
