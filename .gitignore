@@ -1,0 +1,31 @@
+# Secrets and local configuration
+.env
+config/chilluevar.yaml
+
+# Models and recordings: large, and the recordings contain our voices
+models/
+*.onnx
+*.gguf
+recordings/
+!tests/fixtures/*.wav
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Benchmark output
+benchmarks/results/*.json
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store

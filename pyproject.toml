@@ -1,0 +1,65 @@
+[project]
+name = "chilluevar"
+version = "0.0.1"
+description = "A fully local voice assistant: wake word, speech to text, LLM with tools, and speech synthesis, with no audio leaving the machine."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+# Heavy, platform-dependent dependencies live in extras so that the core
+# package (contracts, event bus, configuration) installs in seconds and CI
+# never needs to download a model. See docs/decisions/0003-heavy-dependencies-are-extras.md
+[project.optional-dependencies]
+audio = [
+    "sounddevice>=0.4.6",
+    "numpy>=1.26",
+]
+stt = [
+    "faster-whisper>=1.0",
+]
+tts = [
+    "piper-tts>=1.2",
+]
+wake = [
+    "openwakeword>=0.6",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+    "pre-commit>=3.7",
+]
+
+[project.scripts]
+chilluevar = "chilluevar.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chilluevar"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "I",      # import sorting
+    "UP",     # pyupgrade
+    "B",      # bugbear
+    "ASYNC",  # async pitfalls
+    "RUF",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"

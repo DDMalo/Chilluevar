@@ -1,0 +1,58 @@
+# Copy this file to config/chilluevar.yaml and edit it. The copy is gitignored,
+# so your microphone names and device lists stay on your machine.
+
+# "local": one machine does everything.
+# "satellite": this machine only handles audio and sends the rest to brain_url.
+mode: local
+brain_url: null
+
+# When true the assistant refuses to reach the network at all. This is the
+# default: everything it needs runs on this machine.
+offline_only: true
+
+audio:
+  # null means the operating system's default device.
+  # List the available ones with: python -m sounddevice
+  input_device: null
+  output_device: null
+  sample_rate: 16000
+  frame_ms: 30
+
+wake_word:
+  enabled: true
+  # A bundled model until we train our own on the name (issue #22).
+  model: hey_jarvis
+  # Lower it if it misses you, raise it if it wakes up on its own.
+  threshold: 0.6
+
+stt:
+  engine: faster-whisper
+  # tiny / base / small / medium. "small" is the usual balance in Spanish;
+  # drop to "base" on a machine without a GPU.
+  model: small
+  language: es
+  # Words the engine tends to mishear and that matter to us.
+  hints:
+    - Chilluevar
+
+llm:
+  engine: ollama
+  model: qwen2.5:7b-instruct
+  base_url: http://localhost:11434
+  # Spoken answers have to be short, so this is a hard ceiling.
+  max_reply_words: 60
+  # How many previous exchanges stay in context.
+  history_turns: 6
+
+tts:
+  engine: piper
+  voice: es_ES-sharvard-medium
+
+# Tools the model may call. A tool that is not listed here cannot run, even if
+# the model asks for it.
+allowed_tools:
+  - get_time
+
+# Ask out loud before anything that deletes, sends, spends or changes the state
+# of the flat. Leave this on.
+confirm_sensitive: true
