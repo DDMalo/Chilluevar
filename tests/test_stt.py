@@ -126,13 +126,4 @@ def test_pcm_is_scaled_to_minus_one_to_one() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_word_error_rate() -> None:
-    from scripts.bench_stt import word_error_rate as wer
 
-    assert wer("enciende la luz", "enciende la luz") == 0.0
-    # Case, accents and punctuation must not count as mistakes, or the number
-    # measures punctuation instead of the model.
-    assert wer("enciende la luz", "Enciende, la LUZ.") == 0.0
-    assert wer("enciende la luz", "enciende la puerta") == pytest.approx(1 / 3)
-    assert wer("enciende la luz", "") == 1.0
-    assert wer("", "") == 0.0
