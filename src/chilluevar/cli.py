@@ -49,6 +49,12 @@ def build_parser() -> argparse.ArgumentParser:
         "file", type=Path, nargs="?", default=None, help="a .wav; omit it to use the microphone"
     )
     transcribe.add_argument("--model", default=None, help="override the model from the config")
+    transcribe.add_argument(
+        "--save",
+        type=Path,
+        default=None,
+        help="keep the audio and the transcript as <name>.wav and <name>.txt",
+    )
 
     sub.add_parser("devices", help="list the audio devices this machine has")
     return parser
@@ -140,6 +146,16 @@ async def transcribe_once(config: Config, args: argparse.Namespace) -> int:
         hints=config.stt.hints,
     )
     print(f"\n  {text or '(nothing recognised)'}\n")
+
+    if args.save is not None:
+        wav_path = args.save.with_suffix(".wav")
+        txt_path = args.save.with_suffix(".txt")
+        wav_path.parent.mkdir(parents=True, exist_ok=True)
+        save_wav(wav_path, pcm, config.audio.sample_rate)
+        txt_path.write_text(text + "\n", encoding="utf-8")
+        print(f"saved {wav_path} and {txt_path}")
+        print("the .txt holds what the model heard: correct it to what you actually said,")
+        print("or the benchmark will score itself against its own mistakes.")
     return 0
 
 
