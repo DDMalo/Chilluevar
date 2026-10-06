@@ -119,11 +119,3 @@ def test_pcm_is_scaled_to_minus_one_to_one() -> None:
     assert audio[0] == 0.0
     assert 0.99 < audio[1] <= 1.0
     assert audio[2] == -1.0
-
-
-# --------------------------------------------------------------------------- #
-# The benchmark harness for the second half of issue #4
-# --------------------------------------------------------------------------- #
-
-
-
