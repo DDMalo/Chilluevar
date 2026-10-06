@@ -16,6 +16,7 @@ from chilluevar.audio import MicrophoneSource, SpeakerSink, WavFileSource, colle
 from chilluevar.audio.wav import save_wav
 from chilluevar.config import Config, load_config
 from chilluevar.logging_setup import setup_logging
+from chilluevar.stt import WhisperSTT
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,6 +44,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     record.add_argument("--no-playback", action="store_true", help="record only, do not play back")
 
+    transcribe = sub.add_parser("transcribe", help="turn speech into text")
+    transcribe.add_argument(
+        "file", type=Path, nargs="?", default=None, help="a .wav; omit it to use the microphone"
+    )
+    transcribe.add_argument("--model", default=None, help="override the model from the config")
+
     sub.add_parser("devices", help="list the audio devices this machine has")
     return parser
 
@@ -67,31 +74,34 @@ def show_devices() -> int:
     return 0
 
 
-async def record_once(config: Config, args: argparse.Namespace) -> int:
-    """Push to talk: Enter starts, Enter stops."""
-    if args.from_file is not None:
+async def capture(config: Config, from_file: Path | None) -> bytes:
+    """Audio from a file, or push to talk: Enter starts, Enter stops."""
+    if from_file is not None:
         source = WavFileSource(
-            args.from_file,
+            from_file,
             sample_rate=config.audio.sample_rate,
             frame_ms=config.audio.frame_ms,
         )
-        print(f"reading {args.from_file}")
-        stop = None
-    else:
-        source = MicrophoneSource(
-            sample_rate=config.audio.sample_rate,
-            frame_ms=config.audio.frame_ms,
-            device=config.audio.input_device,
-        )
-        # input() blocks, so every call to it goes to a worker thread. Reading
-        # stdin on the event loop would stop audio frames arriving while we
-        # wait for a key. (ruff's ASYNC250 rule catches exactly this.)
-        await asyncio.to_thread(input, "press Enter to start recording...")
-        print("recording, press Enter again to stop")
-        stop = asyncio.Event()
-        asyncio.get_running_loop().create_task(_wait_for_enter(stop))
+        print(f"reading {from_file}")
+        return await collect(source)
 
-    pcm = await collect(source, stop=stop)
+    source = MicrophoneSource(
+        sample_rate=config.audio.sample_rate,
+        frame_ms=config.audio.frame_ms,
+        device=config.audio.input_device,
+    )
+    # input() blocks, so every call to it goes to a worker thread. Reading
+    # stdin on the event loop would stop audio frames arriving while we
+    # wait for a key. (ruff's ASYNC250 rule catches exactly this.)
+    await asyncio.to_thread(input, "press Enter to start recording...")
+    print("recording, press Enter again to stop")
+    stop = asyncio.Event()
+    asyncio.get_running_loop().create_task(_wait_for_enter(stop))
+    return await collect(source, stop=stop)
+
+
+async def record_once(config: Config, args: argparse.Namespace) -> int:
+    pcm = await capture(config, args.from_file)
     seconds = len(pcm) / (config.audio.sample_rate * 2)
     print(f"captured {seconds:.1f} s")
 
@@ -110,6 +120,29 @@ async def record_once(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+async def transcribe_once(config: Config, args: argparse.Namespace) -> int:
+    pcm = await capture(config, args.file)
+    if not pcm:
+        print("nothing to transcribe")
+        return 1
+
+    stt = WhisperSTT(
+        args.model or config.stt.model,
+        device=config.stt.device,
+        compute_type=config.stt.compute_type,
+        beam_size=config.stt.beam_size,
+    )
+    print(f"transcribing with {stt.model_name} (the first run downloads the model)")
+    text = await stt.transcribe(
+        pcm,
+        config.audio.sample_rate,
+        language=config.stt.language,
+        hints=config.stt.hints,
+    )
+    print(f"\n  {text or '(nothing recognised)'}\n")
+    return 0
+
+
 async def _wait_for_enter(stop: asyncio.Event) -> None:
     await asyncio.to_thread(input)
     stop.set()
@@ -125,6 +158,8 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(args.config)
     if args.command == "record":
         return asyncio.run(record_once(config, args))
+    if args.command == "transcribe":
+        return asyncio.run(transcribe_once(config, args))
     return show_config(config)
 
 

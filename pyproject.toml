@@ -19,6 +19,7 @@ audio = [
 ]
 stt = [
     "faster-whisper>=1.0",
+    "numpy>=1.26",
 ]
 tts = [
     "piper-tts>=1.2",
@@ -27,6 +28,9 @@ wake = [
     "openwakeword>=0.6",
 ]
 dev = [
+    # numpy is not a core dependency, but the tests do arithmetic on audio
+    # buffers and CI installs only this extra.
+    "numpy>=1.26",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "ruff>=0.5",
@@ -46,7 +50,7 @@ packages = ["src/chilluevar"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src", "tests", "scripts"]
 
 [tool.ruff.lint]
 select = [
@@ -61,5 +65,7 @@ select = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# scripts/ is importable from the tests so the benchmark harness is covered too.
+pythonpath = ["."]
 asyncio_mode = "auto"
 addopts = "-q"

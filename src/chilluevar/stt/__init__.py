@@ -1,4 +1,5 @@
-"""Speech-to-text engines behind the SpeechToText protocol.
+"""Speech-to-text engines behind the SpeechToText protocol."""
 
-Empty for now: the implementations arrive with their own issues.
-"""
+from chilluevar.stt.whisper import WhisperSTT
+
+__all__ = ["WhisperSTT"]
