@@ -51,6 +51,12 @@ class STTConfig:
     engine: str = "faster-whisper"
     model: str = "small"
     language: str = "es"
+    # "auto" picks a GPU when there is one. On CPU, int8 is several times
+    # faster than the default and barely less accurate; on a GPU, float16.
+    device: str = "auto"
+    compute_type: str = "default"
+    # Higher is slightly more accurate and noticeably slower.
+    beam_size: int = 5
     # Words the engine tends to mishear and that matter to us.
     hints: list[str] = field(default_factory=lambda: ["Chilluevar"])
 

@@ -31,6 +31,13 @@ stt:
   # drop to "base" on a machine without a GPU.
   model: small
   language: es
+  # auto / cpu / cuda
+  device: auto
+  # default / int8 / float16. On CPU, int8 is several times faster and barely
+  # less accurate. On a GPU, float16.
+  compute_type: default
+  # Higher is slightly more accurate and noticeably slower.
+  beam_size: 5
   # Words the engine tends to mishear and that matter to us.
   hints:
     - Chilluevar
