@@ -139,7 +139,7 @@ class Tool(Protocol):
 class LanguageModel(Protocol):
     """Decides what to say and which tools to use."""
 
-    async def stream(
+    def stream(
         self,
         messages: list[Message],
         tools: list[Tool] | None = None,
@@ -149,6 +149,11 @@ class LanguageModel(Protocol):
         Streaming is not a refinement we add later: speaking the first sentence
         while the model is still writing the second is the single biggest cut to
         perceived latency, so it belongs in the interface from the start.
+
+        A plain `def`, like `AudioSource.frames`: implementations are async
+        generators (`async def` with `yield`), and calling one returns the
+        iterator directly. `async def` here would promise a coroutine to await
+        first, which no implementation returns.
         """
         ...
 
