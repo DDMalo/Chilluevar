@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 import pytest
 
+from chilluevar.config import LLMConfig
 from chilluevar.interfaces import LanguageModel
 from chilluevar.llm import LanguageModelError
 from chilluevar.llm.ollama import OllamaLLM
@@ -54,8 +55,8 @@ class FakeOllama:
         self.requests.append(json.loads(request.content))
         return httpx.Response(self.status, content=self.body)
 
-    def client(self) -> OllamaLLM:
-        return OllamaLLM("qwen2.5:3b", transport=httpx.MockTransport(self))
+    def client(self, **settings: Any) -> OllamaLLM:
+        return OllamaLLM("qwen2.5:3b", transport=httpx.MockTransport(self), **settings)
 
 
 async def collect(llm: OllamaLLM) -> list[object]:
@@ -137,3 +138,70 @@ async def test_garbage_is_an_error_not_a_crash() -> None:
     ollama = FakeOllama(b"<html>Bad Gateway</html>\n")
     with pytest.raises(LanguageModelError, match="not JSON"):
         await collect(ollama.client())
+
+
+# --------------------------------------------------------------------------- #
+# Options: what shapes the answer, and how long the model stays loaded
+# --------------------------------------------------------------------------- #
+
+
+async def test_sends_the_default_options() -> None:
+    ollama = FakeOllama(ndjson(DONE))
+    await collect(ollama.client())
+    sent = ollama.requests[0]
+    assert sent["keep_alive"] == "30m"
+    assert sent["options"] == {"temperature": 0.6, "num_ctx": 4096}
+    # Not sent unless configured: a model that cannot reason may reject it.
+    assert "think" not in sent
+
+
+async def test_sends_the_options_it_is_given() -> None:
+    ollama = FakeOllama(ndjson(DONE))
+    llm = ollama.client(temperature=0.2, num_ctx=2048, max_reply_tokens=120, keep_alive=-1)
+    await collect(llm)
+    sent = ollama.requests[0]
+    assert sent["keep_alive"] == -1
+    assert sent["options"] == {"temperature": 0.2, "num_ctx": 2048, "num_predict": 120}
+
+
+async def test_think_is_sent_only_when_configured() -> None:
+    ollama = FakeOllama(ndjson(DONE))
+    await collect(ollama.client(think=False))
+    assert ollama.requests[0]["think"] is False
+
+
+def test_from_config_turns_the_word_limit_into_tokens() -> None:
+    config = LLMConfig(model="llama3.2:3b", max_reply_words=50, temperature=0.3, think=False)
+    llm = OllamaLLM.from_config(config)
+    assert llm.model == "llama3.2:3b"
+    assert llm.max_reply_tokens == 100
+    assert llm.temperature == 0.3
+    assert llm.think is False
+
+
+def test_from_config_accepts_overrides() -> None:
+    # What the model comparison does: same configuration, another model.
+    llm = OllamaLLM.from_config(LLMConfig(), model="qwen3:4b", think=False)
+    assert llm.model == "qwen3:4b"
+    assert llm.think is False
+
+
+async def test_warm_up_loads_the_model_without_asking_anything() -> None:
+    ollama = FakeOllama(b'{"done": true, "done_reason": "load"}')
+    seconds = await ollama.client().warm_up()
+    assert seconds >= 0
+    sent = ollama.requests[0]
+    assert sent["messages"] == []
+    assert sent["stream"] is False
+    assert sent["keep_alive"] == "30m"
+
+
+async def test_warm_up_says_when_ollama_is_not_running() -> None:
+    with pytest.raises(LanguageModelError, match="is it running"):
+        await failing(httpx.ConnectError).warm_up()
+
+
+async def test_warm_up_says_when_the_model_is_missing() -> None:
+    ollama = FakeOllama(b'{"error":"model \'qwen2.5:3b\' not found"}', status=404)
+    with pytest.raises(LanguageModelError, match="Run: ollama pull"):
+        await ollama.client().warm_up()

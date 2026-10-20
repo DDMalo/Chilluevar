@@ -50,6 +50,18 @@ llm:
   max_reply_words: 60
   # How many previous exchanges stay in context.
   history_turns: 6
+  # 0 always gives the same answer; above 1 it starts to ramble.
+  temperature: 0.6
+  # How much of the conversation the model can see, in tokens. Too small and
+  # the start of the conversation, system prompt included, is silently lost.
+  num_ctx: 4096
+  # How long the model stays in memory after answering. Reloading it costs
+  # seconds. Use -1 to keep it loaded for good.
+  keep_alive: 30m
+  # Only for models that reason before answering (qwen3, gemma4...): set it to
+  # false, or every answer waits for a long hidden reasoning. Leave it as null
+  # for models that do not reason.
+  think: null
 
 tts:
   engine: piper
