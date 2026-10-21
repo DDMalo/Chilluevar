@@ -93,6 +93,11 @@ class LLMConfig:
 class TTSConfig:
     engine: str = "piper"
     voice: str = "es_ES-sharvard-medium"
+    # Where the .onnx and .onnx.json of the voice live.
+    voice_dir: str = "models/piper"
+    # Rewrite numbers, times, symbols and leftover markdown before speaking.
+    # Off is for hearing exactly what the model produced, when debugging.
+    clean_text: bool = True
 
 
 @dataclass(slots=True)
