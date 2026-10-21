@@ -1,9 +1,10 @@
 """Entry point.
 
-`chilluevar` prints the configuration it would run with. `chilluevar record` is
-the push-to-talk loop from issue #3: record, save, play back. `chilluevar
-transcribe` is speech to text (issue #4) and `chilluevar ask` the language model
-(issue #5), each on its own. Joining them up is issue #7.
+`chilluevar run` is the assistant: press Enter, speak, hear the answer. The
+other commands are the same pipeline taken apart, which is how each stage was
+built and how each is still debugged on its own: `record` is the microphone and
+the speaker (issue #3), `transcribe` is speech to text (#4), `ask` is the
+language model in writing (#5) and `say` is the voice (#6).
 """
 
 from __future__ import annotations
@@ -18,9 +19,12 @@ from typing import TYPE_CHECKING
 from chilluevar import __version__
 from chilluevar.audio import MicrophoneSource, SpeakerSink, WavFileSource, collect
 from chilluevar.audio.wav import save_wav
+from chilluevar.bus import EventBus
 from chilluevar.config import Config, load_config
+from chilluevar.events import Stage
 from chilluevar.llm import LanguageModelError, speech_problems, system_prompt
 from chilluevar.logging_setup import setup_logging
+from chilluevar.pipeline import Pipeline, TurnResult
 from chilluevar.stt import WhisperSTT
 from chilluevar.tts import PiperTTS, clean_for_speech
 
@@ -83,6 +87,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--show", action="store_true", help="print what will actually be spoken and stop"
     )
 
+    run = sub.add_parser("run", help="the whole assistant: speak, and hear the answer")
+    run.add_argument("--once", action="store_true", help="answer one question and exit")
+    run.add_argument(
+        "--from-file",
+        type=Path,
+        default=None,
+        help="take the question from a .wav instead of the microphone (implies --once)",
+    )
+    run.add_argument("--model", default=None, help="override the language model from the config")
+
     sub.add_parser("devices", help="list the audio devices this machine has")
     return parser
 
@@ -93,7 +107,8 @@ def show_config(config: Config) -> int:
     print(f"  stt:   {config.stt.engine} ({config.stt.model})")
     print(f"  llm:   {config.llm.engine} ({config.llm.model})")
     print(f"  tts:   {config.tts.engine} ({config.tts.voice})")
-    print("\nTry `chilluevar record`, `transcribe` or `ask`. The pipeline is not wired yet.")
+    print("\nRun `chilluevar run` to talk to it, or `record`, `transcribe`, `ask` and")
+    print("`say` to exercise one stage at a time.")
     return 0
 
 
@@ -287,6 +302,105 @@ async def say_once(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+async def run_assistant(config: Config, args: argparse.Namespace) -> int:
+    """The whole thing: press Enter, speak, hear the answer.
+
+    This function only assembles the engines and feeds the pipeline audio. The
+    turn itself lives in `pipeline.py`, which knows nothing about Whisper,
+    Ollama or Piper, so swapping any of them is a change to these few lines.
+    """
+    try:
+        from chilluevar.llm.ollama import OllamaLLM
+    except ImportError:
+        print('the language model needs the llm extra:  pip install -e ".[llm]"')
+        return 1
+
+    stt = WhisperSTT(
+        config.stt.model,
+        device=config.stt.device,
+        compute_type=config.stt.compute_type,
+        beam_size=config.stt.beam_size,
+    )
+    overrides = {"model": args.model} if args.model else {}
+    llm = OllamaLLM.from_config(config.llm, **overrides)
+    tts = PiperTTS(config.tts.voice, directory=config.tts.voice_dir, clean=config.tts.clean_text)
+    print(f"stt: {stt.model_name}   llm: {llm.model}   tts: {tts.voice}")
+
+    try:
+        # Loading the model now rather than inside the first turn: otherwise
+        # the first question sits in silence for several seconds and looks
+        # like the assistant did not hear it.
+        print(f"model ready in {await llm.warm_up():.1f} s\n")
+    except LanguageModelError as error:
+        print(f"error: {error}")
+        return 1
+
+    bus = EventBus()
+    async with SpeakerSink(device=config.audio.output_device) as sink:
+        pipeline = Pipeline(
+            bus,
+            stt=stt,
+            llm=llm,
+            tts=tts,
+            sink=sink,
+            system_prompt=system_prompt(max_words=config.llm.max_reply_words),
+            language=config.stt.language,
+            hints=config.stt.hints,
+            max_reply_words=config.llm.max_reply_words,
+        )
+        try:
+            return await _turns(pipeline, config, args)
+        except (KeyboardInterrupt, EOFError):
+            print("\nbye")
+            return 0
+
+
+async def _turns(pipeline: Pipeline, config: Config, args: argparse.Namespace) -> int:
+    """Keep answering questions until asked to stop."""
+    # A file holds one question, so looping over it would answer the same thing
+    # for ever.
+    once = args.once or args.from_file is not None
+    while True:
+        pcm = await capture(config, args.from_file)
+        if not pcm:
+            print("nothing was recorded")
+            return 1
+
+        turn = await pipeline.run_turn(pcm, config.audio.sample_rate)
+        _report(turn)
+        if once:
+            return 0 if turn.ok else 1
+
+
+def _report(turn: TurnResult) -> None:
+    print()
+    if turn.transcript:
+        print(f"  you:        {turn.transcript}")
+    if turn.reply:
+        print(f"  chilluevar: {turn.reply}")
+    if turn.failed is not None:
+        print(f"  (gave up at {turn.failed.value}: {turn.reason})")
+    print(f"  [{_timings(turn)}]\n")
+
+
+def _timings(turn: TurnResult) -> str:
+    """One line of timings, which is also the number the README quotes.
+
+    Printed every turn rather than behind a flag: a latency nobody sees is a
+    latency nobody fixes, and issue #14 starts from whatever this says today.
+    """
+    names = {
+        Stage.SPEECH_TO_TEXT: "heard in",
+        Stage.LANGUAGE_MODEL: "thought for",
+        Stage.TEXT_TO_SPEECH: "spoke in",
+    }
+    parts = [
+        f"{names[stage]} {ms / 1000:.1f} s" for stage, ms in turn.timings.items() if stage in names
+    ]
+    parts.append(f"{turn.total_ms / 1000:.1f} s in total")
+    return ", ".join(parts)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     setup_logging(args.log_level, log_transcripts=args.log_transcripts)
@@ -303,6 +417,8 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(ask(config, args))
     if args.command == "say":
         return asyncio.run(say_once(config, args))
+    if args.command == "run":
+        return asyncio.run(run_assistant(config, args))
     return show_config(config)
 
 
