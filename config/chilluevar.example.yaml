@@ -68,6 +68,13 @@ llm:
 tts:
   engine: piper
   voice: es_ES-sharvard-medium
+  # Download the voice with:
+  #   python -m piper.download_voices es_ES-sharvard-medium --data-dir models/piper
+  voice_dir: models/piper
+  # Rewrite numbers, times, symbols and leftover markdown before speaking, so
+  # "20:15" is read as "las ocho y cuarto" and not as four digits. Turn it off
+  # only to hear exactly what the model produced.
+  clean_text: true
 
 # Tools the model may call. A tool that is not listed here cannot run, even if
 # the model asks for it.

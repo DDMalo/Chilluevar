@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import sys
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -21,6 +22,7 @@ from chilluevar.config import Config, load_config
 from chilluevar.llm import LanguageModelError, speech_problems, system_prompt
 from chilluevar.logging_setup import setup_logging
 from chilluevar.stt import WhisperSTT
+from chilluevar.tts import PiperTTS, clean_for_speech
 
 if TYPE_CHECKING:
     # Only for the type annotations: importing it for real needs the llm extra.
@@ -69,6 +71,17 @@ def build_parser() -> argparse.ArgumentParser:
         "question", nargs="?", default=None, help="omit it to keep asking until an empty line"
     )
     ask.add_argument("--model", default=None, help="override the model from the config")
+
+    say = sub.add_parser("say", help="read text out loud")
+    say.add_argument("text", nargs="?", default=None, help="omit it to read from stdin")
+    say.add_argument("--voice", default=None, help="override the voice from the config")
+    say.add_argument("--output", type=Path, default=None, help="save to a .wav instead of playing")
+    say.add_argument(
+        "--raw", action="store_true", help="speak the text as written, without cleaning it"
+    )
+    say.add_argument(
+        "--show", action="store_true", help="print what will actually be spoken and stop"
+    )
 
     sub.add_parser("devices", help="list the audio devices this machine has")
     return parser
@@ -237,6 +250,43 @@ async def _wait_for_enter(stop: asyncio.Event) -> None:
     stop.set()
 
 
+async def say_once(config: Config, args: argparse.Namespace) -> int:
+    text = args.text if args.text is not None else sys.stdin.read()
+    if not text.strip():
+        print("nothing to say")
+        return 1
+
+    if args.show:
+        print(clean_for_speech(text) if not args.raw else text)
+        return 0
+
+    tts = PiperTTS(
+        args.voice or config.tts.voice,
+        directory=config.tts.voice_dir,
+        clean=config.tts.clean_text and not args.raw,
+    )
+    try:
+        pcm = await tts.synthesize(text)
+    except RuntimeError as error:
+        # A missing voice or a missing extra is something the person can fix.
+        # A stack trace buries the one line that says how.
+        print(error)
+        return 1
+    if not pcm:
+        print("the synthesiser produced no audio")
+        return 1
+
+    if args.output is not None:
+        save_wav(args.output, pcm, tts.sample_rate)
+        print(f"saved to {args.output}")
+        return 0
+
+    async with SpeakerSink(device=config.audio.output_device) as sink:
+        await sink.play(pcm, tts.sample_rate)
+        await sink.drain()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     setup_logging(args.log_level, log_transcripts=args.log_transcripts)
@@ -251,6 +301,8 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(transcribe_once(config, args))
     if args.command == "ask":
         return asyncio.run(ask(config, args))
+    if args.command == "say":
+        return asyncio.run(say_once(config, args))
     return show_config(config)
 
 
