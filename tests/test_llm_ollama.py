@@ -205,3 +205,17 @@ async def test_warm_up_says_when_the_model_is_missing() -> None:
     ollama = FakeOllama(b'{"error":"model \'qwen2.5:3b\' not found"}', status=404)
     with pytest.raises(LanguageModelError, match="Run: ollama pull"):
         await ollama.client().warm_up()
+
+
+async def test_unload_asks_ollama_to_free_the_model() -> None:
+    ollama = FakeOllama(b'{"done": true, "done_reason": "unload"}')
+    await ollama.client().unload()
+    sent = ollama.requests[0]
+    assert sent["messages"] == []
+    # keep_alive 0 means "unload as soon as this request is done".
+    assert sent["keep_alive"] == 0
+
+
+async def test_unload_does_not_fail_when_ollama_is_not_running() -> None:
+    # Nothing to free; the comparison must be able to carry on.
+    await failing(httpx.ConnectError).unload()

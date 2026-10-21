@@ -149,6 +149,20 @@ class OllamaLLM:
             raise LanguageModelError(self._explain(response))
         return time.perf_counter() - started
 
+    async def unload(self) -> None:
+        """Free the memory the model is using now, without waiting for keep_alive.
+
+        The model comparison calls this between models: a laptop that tries to
+        hold two of them at once runs out of graphics memory and slows down,
+        and then it is measuring the lack of memory instead of the model.
+        """
+        body = {"model": self.model, "messages": [], "stream": False, "keep_alive": 0}
+        try:
+            async with self._client() as client:
+                await client.post("/api/chat", json=body)
+        except httpx.TransportError:
+            pass  # if Ollama is not even running, there is nothing to free
+
     def _network_error(self, exc: httpx.TransportError) -> LanguageModelError:
         """Say what a failure to talk to Ollama most likely means.
 
