@@ -6,5 +6,7 @@ importing on an install without it.
 """
 
 from chilluevar.llm.base import LanguageModelError
+from chilluevar.llm.prompt import system_prompt
+from chilluevar.llm.spoken import speech_problems
 
-__all__ = ["LanguageModelError"]
+__all__ = ["LanguageModelError", "speech_problems", "system_prompt"]
