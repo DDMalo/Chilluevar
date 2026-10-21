@@ -64,7 +64,9 @@ class STTConfig:
 @dataclass(slots=True)
 class LLMConfig:
     engine: str = "ollama"
-    model: str = "qwen2.5:7b-instruct"
+    # Chosen by measuring five models on the same questions: see
+    # docs/decisions/0006-first-language-model.md.
+    model: str = "qwen3:8b"
     base_url: str = "http://localhost:11434"
     # Spoken answers must be short; this is a hard ceiling, not a suggestion.
     max_reply_words: int = 60
@@ -83,7 +85,8 @@ class LLMConfig:
     # Only for models that reason before answering (qwen3, gemma4...): false
     # skips the reasoning, which is far too slow to wait for in silence.
     # None sends nothing, which is what models that do not reason need.
-    think: bool | None = None
+    # False by default because the default model, qwen3:8b, reasons.
+    think: bool | None = False
 
 
 @dataclass(slots=True)
