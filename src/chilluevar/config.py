@@ -64,11 +64,29 @@ class STTConfig:
 @dataclass(slots=True)
 class LLMConfig:
     engine: str = "ollama"
-    model: str = "qwen2.5:7b-instruct"
+    # Chosen by measuring five models on the same questions: see
+    # docs/decisions/0006-first-language-model.md.
+    model: str = "qwen3:8b"
     base_url: str = "http://localhost:11434"
     # Spoken answers must be short; this is a hard ceiling, not a suggestion.
     max_reply_words: int = 60
     history_turns: int = 6
+    # 0 always gives the same answer to the same question; much above 1 the
+    # model starts to ramble. In between, it varies the wording a little.
+    temperature: float = 0.6
+    # Context window in tokens: how much of the conversation the model can
+    # see. When it fills up, the oldest part is silently dropped, and the
+    # system prompt is the oldest part of all.
+    num_ctx: int = 4096
+    # How long the model stays in memory after answering ("30m", "1h", or -1
+    # for ever). Ollama's default is five minutes; after that, the next
+    # question pays the whole loading time again.
+    keep_alive: str | int = "30m"
+    # Only for models that reason before answering (qwen3, gemma4...): false
+    # skips the reasoning, which is far too slow to wait for in silence.
+    # None sends nothing, which is what models that do not reason need.
+    # False by default because the default model, qwen3:8b, reasons.
+    think: bool | None = False
 
 
 @dataclass(slots=True)
@@ -117,6 +135,10 @@ class Config:
             raise ValueError("wake_word.threshold must be between 0 and 1")
         if self.audio.sample_rate not in {8_000, 16_000, 22_050, 44_100, 48_000}:
             raise ValueError(f"unsupported sample rate: {self.audio.sample_rate}")
+        if self.llm.max_reply_words < 1:
+            raise ValueError("llm.max_reply_words must be at least 1")
+        if not 0.0 <= self.llm.temperature <= 2.0:
+            raise ValueError("llm.temperature must be between 0 and 2")
 
 
 def _build(cls: type, raw: dict[str, Any]) -> Any:

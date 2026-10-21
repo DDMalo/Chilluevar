@@ -44,12 +44,26 @@ stt:
 
 llm:
   engine: ollama
-  model: qwen2.5:7b-instruct
+  # Chosen in docs/decisions/0006-first-language-model.md. Pull it first:
+  #   ollama pull qwen3:8b
+  model: qwen3:8b
   base_url: http://localhost:11434
   # Spoken answers have to be short, so this is a hard ceiling.
   max_reply_words: 60
   # How many previous exchanges stay in context.
   history_turns: 6
+  # 0 always gives the same answer; above 1 it starts to ramble.
+  temperature: 0.6
+  # How much of the conversation the model can see, in tokens. Too small and
+  # the start of the conversation, system prompt included, is silently lost.
+  num_ctx: 4096
+  # How long the model stays in memory after answering. Reloading it costs
+  # seconds. Use -1 to keep it loaded for good.
+  keep_alive: 30m
+  # Only for models that reason before answering (qwen3, gemma4...): set it to
+  # false, or every answer waits for a long hidden reasoning. Set it to null
+  # for models that do not reason, such as qwen2.5 or llama3.2.
+  think: false
 
 tts:
   engine: piper

@@ -1,22 +1,30 @@
 """Entry point.
 
 `chilluevar` prints the configuration it would run with. `chilluevar record` is
-the push-to-talk loop from issue #3: record, save, play back. The rest of the
-pipeline arrives with issues #4 to #7.
+the push-to-talk loop from issue #3: record, save, play back. `chilluevar
+transcribe` is speech to text (issue #4) and `chilluevar ask` the language model
+(issue #5), each on its own. Joining them up is issue #7.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from chilluevar import __version__
 from chilluevar.audio import MicrophoneSource, SpeakerSink, WavFileSource, collect
 from chilluevar.audio.wav import save_wav
 from chilluevar.config import Config, load_config
+from chilluevar.llm import LanguageModelError, speech_problems, system_prompt
 from chilluevar.logging_setup import setup_logging
 from chilluevar.stt import WhisperSTT
+
+if TYPE_CHECKING:
+    # Only for the type annotations: importing it for real needs the llm extra.
+    from chilluevar.llm.ollama import OllamaLLM
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,6 +64,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="keep the audio and the transcript as <name>.wav and <name>.txt",
     )
 
+    ask = sub.add_parser("ask", help="ask the language model something, in writing")
+    ask.add_argument(
+        "question", nargs="?", default=None, help="omit it to keep asking until an empty line"
+    )
+    ask.add_argument("--model", default=None, help="override the model from the config")
+
     sub.add_parser("devices", help="list the audio devices this machine has")
     return parser
 
@@ -66,7 +80,7 @@ def show_config(config: Config) -> int:
     print(f"  stt:   {config.stt.engine} ({config.stt.model})")
     print(f"  llm:   {config.llm.engine} ({config.llm.model})")
     print(f"  tts:   {config.tts.engine} ({config.tts.voice})")
-    print("\nTry `chilluevar record`. The full pipeline is not wired yet.")
+    print("\nTry `chilluevar record`, `transcribe` or `ask`. The pipeline is not wired yet.")
     return 0
 
 
@@ -159,6 +173,65 @@ async def transcribe_once(config: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+async def ask(config: Config, args: argparse.Namespace) -> int:
+    """Talk to the model in writing, with the same prompt it will get by voice."""
+    try:
+        from chilluevar.llm.ollama import OllamaLLM
+    except ImportError:
+        print('the language model needs the llm extra:  pip install -e ".[llm]"')
+        return 1
+
+    overrides = {"model": args.model} if args.model else {}
+    llm = OllamaLLM.from_config(config.llm, **overrides)
+    prompt = system_prompt(max_words=config.llm.max_reply_words)
+
+    try:
+        print(f"loading {llm.model}...")
+        print(f"ready in {await llm.warm_up():.1f} s\n")
+        while question := args.question or await _read_question():
+            await _answer(llm, prompt, question, config.llm.max_reply_words)
+            if args.question:
+                break
+    except LanguageModelError as exc:
+        print(f"error: {exc}")
+        return 1
+    return 0
+
+
+async def _read_question() -> str:
+    """One question from the keyboard; an empty line or Ctrl+Z/Ctrl+D ends."""
+    try:
+        return (await asyncio.to_thread(input, "> ")).strip()
+    except EOFError:
+        return ""
+
+
+async def _answer(llm: OllamaLLM, prompt: str, question: str, max_words: int) -> None:
+    # No memory between questions yet: every question starts a fresh
+    # conversation. Keeping the history is issue #9.
+    messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": question},
+    ]
+    started = time.perf_counter()
+    first_words: float | None = None
+    parts: list[str] = []
+    async for piece in llm.stream(messages):
+        if not isinstance(piece, str):
+            continue  # a tool call; tools arrive with issue #10
+        if first_words is None:
+            first_words = time.perf_counter() - started
+        parts.append(piece)
+        print(piece, end="", flush=True)
+
+    total = time.perf_counter() - started
+    problems = speech_problems("".join(parts), max_words=max_words)
+    print(f"\n  [first words after {first_words or total:.2f} s, {total:.2f} s in total]")
+    if problems:
+        print(f"  [would sound wrong out loud: {', '.join(problems)}]")
+    print()
+
+
 async def _wait_for_enter(stop: asyncio.Event) -> None:
     await asyncio.to_thread(input)
     stop.set()
@@ -176,6 +249,8 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(record_once(config, args))
     if args.command == "transcribe":
         return asyncio.run(transcribe_once(config, args))
+    if args.command == "ask":
+        return asyncio.run(ask(config, args))
     return show_config(config)
 
 

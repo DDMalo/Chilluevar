@@ -40,6 +40,9 @@ def setup_logging(level: str = "INFO", *, log_transcripts: bool = False) -> None
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level.upper())
+    # httpx logs every request to Ollama at INFO, one line per question, which
+    # buries what we actually want to read. Its warnings and errors still show.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     if log_transcripts:
         root.warning("transcript logging is ON: this log will contain what was said")

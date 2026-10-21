@@ -64,3 +64,30 @@ def test_example_config_is_loadable() -> None:
     # The file we ship must actually work; otherwise the quickstart in the
     # README is wrong and nobody can run the project.
     load_config(Path(__file__).parent.parent / "config" / "chilluevar.example.yaml")
+
+
+def test_llm_options_come_from_yaml(tmp_path: Path) -> None:
+    path = tmp_path / "chilluevar.yaml"
+    path.write_text(
+        "llm:\n  temperature: 0.2\n  keep_alive: -1\n  think: false\n",
+        encoding="utf-8",
+    )
+    llm = load_config(path).llm
+    assert llm.temperature == 0.2
+    # YAML reads -1 as a number and 30m as text; Ollama accepts both.
+    assert llm.keep_alive == -1
+    assert llm.think is False
+
+
+def test_rejects_an_impossible_temperature() -> None:
+    config = Config()
+    config.llm.temperature = 5.0
+    with pytest.raises(ValueError, match="temperature"):
+        config.validate()
+
+
+def test_rejects_a_reply_limit_of_zero_words() -> None:
+    config = Config()
+    config.llm.max_reply_words = 0
+    with pytest.raises(ValueError, match="max_reply_words"):
+        config.validate()
