@@ -12,6 +12,8 @@ instead of saying it did not understand.
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from chilluevar.bus import EventBus
@@ -260,6 +262,40 @@ async def test_a_voice_that_is_missing_does_not_try_to_apologise_out_loud() -> N
     assert "voice not downloaded" in turn.reason
     assert sink.played == []
     assert only(seen, SpeechFinished) == []
+
+
+async def test_a_failed_apology_does_not_bury_the_real_reason(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Both engines broken at once, which is what the first real run looked like.
+
+    Whisper could not load its CUDA libraries and the Piper voice had never
+    been downloaded, so the turn failed and then the apology failed too. The
+    apology is a secondary failure and gets one line; a traceback for it is
+    longer than everything else on screen and pushes the real reason off it.
+    """
+    pipeline, _, _, _, _, _ = build(
+        stt=FakeSTT(fails=RuntimeError("Library cublas64_12.dll is not found")),
+        tts=FakeTTS(
+            fails=RuntimeError(
+                "voice not found at models/piper/es_ES.onnx. Download it with:\n"
+                "  python -m piper.download_voices es_ES --data-dir models/piper"
+            )
+        ),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="chilluevar.pipeline"):
+        turn = await pipeline.run_turn(silence(), SAMPLE_RATE)
+
+    assert turn.failed is Stage.SPEECH_TO_TEXT
+    assert "cublas" in turn.reason
+
+    apologies = [record for record in caplog.records if "apology" in record.getMessage()]
+    assert len(apologies) == 1
+    assert apologies[0].exc_info is None, "a traceback here buries the real reason"
+    # The "download it with" line is help for whoever asked for speech, not for
+    # a warning about a turn that had already failed for another reason.
+    assert "download_voices" not in apologies[0].getMessage()
 
 
 async def test_a_failed_stage_is_still_timed() -> None:
