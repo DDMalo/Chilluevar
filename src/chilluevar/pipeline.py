@@ -65,6 +65,17 @@ FAILURE_PHRASES = {
 }
 
 
+def _first_line(message: str) -> str:
+    """The first line of an error message.
+
+    Our own errors are written to be read: they say what is wrong and then, on
+    the next lines, the command that fixes it. That is right in front of the
+    person who caused it and wrong in a warning about something that already
+    failed for another reason.
+    """
+    return message.strip().splitlines()[0] if message.strip() else ""
+
+
 @dataclass(slots=True)
 class TurnResult:
     """What happened in one turn."""
@@ -258,9 +269,16 @@ class Pipeline:
             if pcm:
                 await self._sink.play(pcm, self._tts.sample_rate)
                 await self._sink.drain()
-        except Exception:
-            # The apology failing must not replace the real reason in the log.
-            logger.exception("could not speak the apology", extra={"turn_id": turn.turn_id})
+        except Exception as error:
+            # One line, not a traceback. The turn already logged why it failed,
+            # and a stack trace for the apology is longer than everything else
+            # on screen put together: the first run on a machine with no voice
+            # downloaded buried the real reason under twenty lines of it.
+            logger.warning(
+                "could not speak the apology: %s",
+                _first_line(str(error)),
+                extra={"turn_id": turn.turn_id},
+            )
 
     @asynccontextmanager
     async def _timed(self, turn: TurnResult, stage: Stage) -> AsyncIterator[None]:
