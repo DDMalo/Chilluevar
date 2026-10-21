@@ -13,6 +13,11 @@ model comparison is where it gets checked.
 
 Whether a model actually obeys is measured, not assumed: `speech_problems` in
 `chilluevar.llm.spoken` flags every answer that breaks these rules.
+
+The rule against closing offers ("¿quieres saber más?") came from measuring:
+qwen3:8b ended over half of its answers with one when the prompt said "ofrece
+ampliarlo", which nearly doubled its length. Read once on screen it is polite;
+heard after every single answer it is noise.
 """
 
 from __future__ import annotations
@@ -44,7 +49,9 @@ Todo lo que escribas se leerá en voz alta con un sintetizador de voz.
 Cómo responder:
 - En español de España, con frases naturales, como si hablaras.
 - Breve: una o dos frases y nunca más de {max_words} palabras. Si el tema da \
-para más, di lo esencial y ofrece ampliarlo.
+para mucho más, di solo lo esencial.
+- No termines ofreciendo más ayuda ni preguntando si quieres algo más: quien \
+quiera más, ya lo pedirá.
 - Sin listas, viñetas, títulos, tablas, negritas, emojis ni símbolos de formato. \
 Si tienes que enumerar cosas, hazlo en una sola frase, separadas por comas.
 - Sin enlaces, código ni fórmulas. Escribe con palabras lo que un símbolo \

@@ -26,6 +26,14 @@ def test_prompt_is_the_same_all_day() -> None:
     assert system_prompt(today=date(2026, 10, 21)) == system_prompt(today=date(2026, 10, 21))
 
 
+def test_prompt_asks_for_no_closing_offer() -> None:
+    # Measured: when the prompt invited the model to "offer to expand",
+    # qwen3:8b ended over half its answers with "¿quieres saber más?".
+    prompt = system_prompt()
+    assert "ofrece ampliarlo" not in prompt
+    assert "No termines ofreciendo más ayuda" in prompt
+
+
 def test_prompt_follows_its_own_rules() -> None:
     # The model imitates the example answer more than it obeys the rules, so
     # the example must pass the same check as the model's answers.
