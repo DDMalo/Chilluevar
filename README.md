@@ -13,10 +13,10 @@ Two things drive every design decision here:
   one nobody uses. Every stage is timed separately on every turn, and the
   benchmarks are published in this README as they improve.
 
-> **Status: v0.0.** The contracts between modules, the event bus, the
-> configuration and the test harness are in place. The pipeline itself is being
-> built in the open — see the [issues](../../issues) and
-> [milestones](../../milestones).
+> **Status: v0.1.** Press Enter, speak in Spanish, and hear the answer out
+> loud, with speech recognition, the language model and the voice all running
+> locally. No wake word, tools or memory yet — see the [issues](../../issues)
+> and [milestones](../../milestones) for what comes next.
 
 ## How it works
 
@@ -56,23 +56,35 @@ configuration change, not a rewrite.
 
 ## Try it
 
-Requires Python 3.11 or newer.
+Requires Python 3.11 or newer, [Ollama](https://ollama.com) and a microphone.
+A graphics card helps but is not required: on a CPU, set `stt.model: base` in
+the configuration.
 
 ```bash
 git clone https://github.com/DDMalo/chilluevar.git
 cd chilluevar
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[audio,stt,tts,llm]"
 
 cp config/chilluevar.example.yaml config/chilluevar.yaml
-chilluevar --config config/chilluevar.yaml
+ollama pull qwen3:8b
+python -m piper.download_voices es_ES-sharvard-medium --data-dir models/piper
+
+chilluevar --config config/chilluevar.yaml run
 ```
 
-The heavy dependencies are optional extras (`[audio]`, `[stt]`, `[tts]`,
-`[wake]`), so the core installs in seconds and the test suite never downloads a
-model. Install the extras as the matching features land.
+Press Enter, speak, and press Enter again. It prints what it heard, what it
+answered and how long each stage took, and says the answer out loud.
+`run --from-file question.wav` takes the question from a recording instead.
+
+Each stage can also be tried on its own: `record`, `transcribe`, `ask` and
+`say`.
+
+The heavy dependencies are optional extras, so the core installs in seconds and
+the test suite never downloads a model.
 
 ```bash
+pip install -e ".[dev]"
 pytest          # the whole suite, no models, no network
 ruff check .    # lint
 ruff format .   # format
@@ -85,6 +97,8 @@ src/chilluevar/
 ├── events.py        # the messages modules exchange: the contract
 ├── interfaces.py    # protocols for every swappable engine
 ├── bus.py           # in-process publish/subscribe
+├── pipeline.py      # one turn: transcribe, think, speak
+├── cli.py           # chilluevar run, record, transcribe, ask, say
 ├── config.py        # YAML configuration, overridable from the environment
 ├── logging_setup.py # logging that redacts transcripts by default
 ├── audio/           # capture, playback, wake word, voice activity
@@ -92,6 +106,7 @@ src/chilluevar/
 ├── llm/             # language model clients
 ├── tts/             # speech synthesis engines
 └── tools/           # what the model can actually do
+scripts/             # benchmarks that compare models
 docs/decisions/      # why each choice was made
 ```
 

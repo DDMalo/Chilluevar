@@ -13,3 +13,5 @@ is built this way instead of shrugging.
 | [0002](0002-engines-behind-protocols.md) | Every engine lives behind a `Protocol` | Accepted |
 | [0003](0003-heavy-dependencies-are-extras.md) | Heavy dependencies are optional extras | Accepted |
 | [0004](0004-satellite-mode-from-day-one.md) | Satellite mode is designed in from day one | Accepted |
+| [0005](0005-ollama-native-api-over-httpx.md) | Talk to Ollama through its native API, with `httpx` | Accepted |
+| [0006](0006-first-language-model.md) | `qwen3:8b`, with thinking off, as the first language model | Accepted |

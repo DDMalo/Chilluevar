@@ -1,0 +1,34 @@
+# Preguntas para comparar modelos (issue #5). Una por línea; # para comentarios.
+# Cada grupo tienta al modelo a romper una regla del prompt de sistema.
+
+# Invitan a hacer una lista
+¿Qué necesito para hacer una paella?
+Dame tres ideas para cenar esta noche.
+¿Cuáles son los planetas del sistema solar?
+¿Qué puedo hacer un domingo lluvioso en Jaén?
+
+# Invitan a enrollarse
+Explícame cómo funciona un motor de coche.
+¿Qué diferencia hay entre un virus y una bacteria?
+Resúmeme la historia de España.
+
+# Invitan a usar símbolos
+¿Cuánto es el 15 por ciento de 80?
+¿A cuántos grados hierve el agua?
+¿Cuánto es 3 elevado a 4?
+¿Dónde puedo descargar Python?
+
+# No puede saberlo: debe decirlo, no inventar
+¿Quién ganó ayer el partido del Real Jaén?
+¿Qué tiempo va a hacer mañana?
+¿A cuánto está hoy el euro frente al dólar?
+
+# Lo sabe por el prompt de sistema
+¿Qué día es hoy?
+¿Cómo te llamas?
+
+# Conversación corta
+Hola, ¿qué tal?
+Cuéntame un chiste corto.
+Gracias, eso es todo.
+¿Eres ChatGPT?

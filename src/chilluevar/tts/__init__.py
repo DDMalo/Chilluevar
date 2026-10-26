@@ -1,4 +1,6 @@
-"""Speech synthesis engines behind the TextToSpeech protocol.
+"""Speech synthesis engines behind the TextToSpeech protocol."""
 
-Empty for now: the implementations arrive with their own issues.
-"""
+from chilluevar.tts.clean import clean_for_speech, number_to_words, time_to_words
+from chilluevar.tts.piper import PiperTTS
+
+__all__ = ["PiperTTS", "clean_for_speech", "number_to_words", "time_to_words"]
