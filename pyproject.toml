@@ -1,6 +1,6 @@
 [project]
 name = "chilluevar"
-version = "0.0.1"
+version = "0.1.0"
 description = "A fully local voice assistant: wake word, speech to text, LLM with tools, and speech synthesis, with no audio leaving the machine."
 readme = "README.md"
 requires-python = ">=3.11"
