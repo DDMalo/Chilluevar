@@ -42,9 +42,13 @@ class AudioConfig:
 @dataclass(slots=True)
 class WakeWordConfig:
     enabled: bool = True
-    # Until we train our own model (task 22) we use a bundled one.
+    # Until we train our own model (task 22) we use a bundled one. It is not
+    # the assistant's name, and saying so here is better than pretending.
     model: str = "hey_jarvis"
     threshold: float = 0.6
+    # onnx or tflite. openWakeWord defaults to tflite, whose runtime is
+    # awkward to install on Windows; onnxruntime is a plain wheel everywhere.
+    framework: str = "onnx"
 
 
 @dataclass(slots=True)
@@ -65,6 +69,9 @@ class ListenConfig:
     min_utterance_ms: int = 400
     # A safety net against a radio left on, not a limit anyone should hit.
     max_utterance_ms: int = 15_000
+    # How sure the voice detector has to be that a frame is speech. Lower
+    # catches a quiet voice and also the television; higher cuts people off.
+    vad_threshold: float = 0.5
 
 
 @dataclass(slots=True)
@@ -164,6 +171,8 @@ class Config:
             raise ValueError("listen.min_utterance_ms must be below max_utterance_ms")
         if self.listen.silence_ms < 1:
             raise ValueError("listen.silence_ms must be positive")
+        if not 0.0 < self.listen.vad_threshold <= 1.0:
+            raise ValueError("listen.vad_threshold must be between 0 and 1")
         if self.audio.sample_rate not in {8_000, 16_000, 22_050, 44_100, 48_000}:
             raise ValueError(f"unsupported sample rate: {self.audio.sample_rate}")
         if self.llm.max_reply_words < 1:

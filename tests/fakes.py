@@ -114,10 +114,14 @@ class FakeVAD:
     def __init__(self, *, marker: bytes = SPEECH) -> None:
         self.marker = marker
         self.fed: list[bytes] = []
+        self.resets = 0
 
     def is_speech(self, frame: bytes, sample_rate: int) -> bool:
         self.fed.append(frame)
         return frame == self.marker
+
+    def reset(self) -> None:
+        self.resets += 1
 
 
 class FakeSink:

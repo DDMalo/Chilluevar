@@ -99,6 +99,17 @@ class VoiceActivityDetector(Protocol):
         """Return True if this frame contains speech."""
         ...
 
+    def reset(self) -> None:
+        """Forget the audio heard so far.
+
+        These detectors are recurrent: they carry state from one frame to the
+        next, which is what lets them tell a pause inside a word from the end
+        of a sentence. After the assistant speaks, that state is the
+        assistant's own voice. Same reason as `WakeWordDetector.reset`, and
+        learned the same way: by plugging an engine in.
+        """
+        ...
+
 
 @runtime_checkable
 class SpeechToText(Protocol):

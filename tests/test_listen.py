@@ -282,3 +282,24 @@ async def test_the_threshold_decides_what_counts_as_a_detection(threshold: float
     play(listener, WAKE, SPEECH, SPEECH, QUIET, QUIET, QUIET)
 
     assert listener.stats.activations == (1 if threshold < 0.7 else 0)
+
+
+async def test_unmuting_clears_the_voice_detector_too() -> None:
+    # It is recurrent: after the assistant speaks, its state is the
+    # assistant's own voice.
+    vad = FakeVAD()
+    listener = build(vad=vad)
+
+    listener.mute()
+    listener.unmute()
+
+    assert vad.resets == 1
+
+
+async def test_a_new_sentence_starts_the_voice_detector_fresh() -> None:
+    vad = FakeVAD()
+    listener = build(vad=vad)
+
+    play(listener, WAKE)
+
+    assert vad.resets == 1
