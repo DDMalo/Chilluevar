@@ -7,12 +7,16 @@ detector with issue #8.
 from chilluevar.audio.listen import Listener, ListenerStats
 from chilluevar.audio.sink import MemorySink, SpeakerSink
 from chilluevar.audio.source import MicrophoneSource, WavFileSource, collect
+from chilluevar.audio.vad import SileroVAD
+from chilluevar.audio.wake import OpenWakeWord
 
 __all__ = [
     "Listener",
     "ListenerStats",
     "MemorySink",
     "MicrophoneSource",
+    "OpenWakeWord",
+    "SileroVAD",
     "SpeakerSink",
     "WavFileSource",
     "collect",

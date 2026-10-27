@@ -24,6 +24,9 @@ wake_word:
   model: hey_jarvis
   # Lower it if it misses you, raise it if it wakes up on its own.
   threshold: 0.6
+  # onnx or tflite. onnx installs everywhere; tflite needs a runtime that is
+  # awkward on Windows.
+  framework: onnx
 
 # Where one spoken sentence begins and ends.
 listen:
@@ -36,6 +39,8 @@ listen:
   min_utterance_ms: 400
   # A safety net against a radio left on, not a limit you should ever hit.
   max_utterance_ms: 15000
+  # How sure the voice detector has to be that a frame is speech.
+  vad_threshold: 0.5
 
 stt:
   engine: faster-whisper

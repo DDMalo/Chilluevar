@@ -25,7 +25,10 @@ tts = [
     "piper-tts>=1.2",
 ]
 wake = [
+    # Brings onnxruntime and the Silero voice detector with it, so there is
+    # no separate dependency (and no torch) for the second one.
     "openwakeword>=0.6",
+    "numpy>=1.26",
 ]
 # Only the HTTP client: the model itself runs in Ollama, outside Python.
 llm = [

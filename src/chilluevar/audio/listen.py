@@ -179,10 +179,11 @@ class Listener:
 
     def unmute(self) -> None:
         self._muted = False
-        # The detectors keep a rolling window of the last second or so. Without
-        # clearing it, the first frames after speaking are the assistant's own
-        # voice, still in the buffer.
+        # The detectors keep a rolling window of the last second or so, and the
+        # voice detector carries recurrent state. Without clearing both, what
+        # they are still holding is the assistant's own voice.
         self._wake.reset()
+        self._vad.reset()
 
     # ----------------------------------------------------------------- #
     # The state machine
@@ -209,6 +210,9 @@ class Listener:
         # has never seen, so feeding it "Chilluevar" only adds a wrong word to
         # the transcript. Detecting it here is what replaces transcribing it.
         self._wake.reset()
+        # A fresh sentence, so the voice detector starts from nothing rather
+        # than from whatever was in the room before the word was said.
+        self._vad.reset()
         self._state = _State.ARMED
         self._frames = []
         self._waited_ms = 0

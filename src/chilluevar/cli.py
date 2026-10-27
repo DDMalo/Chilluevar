@@ -17,7 +17,16 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from chilluevar import __version__
-from chilluevar.audio import MicrophoneSource, SpeakerSink, WavFileSource, collect
+from chilluevar.audio import (
+    Listener,
+    MicrophoneSource,
+    OpenWakeWord,
+    SileroVAD,
+    SpeakerSink,
+    WavFileSource,
+    collect,
+)
+from chilluevar.audio.wake import spoken_form
 from chilluevar.audio.wav import save_wav
 from chilluevar.bus import EventBus
 from chilluevar.config import Config, load_config
@@ -89,6 +98,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     run = sub.add_parser("run", help="the whole assistant: speak, and hear the answer")
     run.add_argument("--once", action="store_true", help="answer one question and exit")
+    run.add_argument(
+        "--hands-free",
+        action="store_true",
+        help="start a turn with the wake word instead of the Enter key",
+    )
     run.add_argument(
         "--from-file",
         type=Path,
@@ -349,10 +363,52 @@ async def run_assistant(config: Config, args: argparse.Namespace) -> int:
             max_reply_words=config.llm.max_reply_words,
         )
         try:
+            if args.hands_free:
+                return await _hands_free(pipeline, config, args)
             return await _turns(pipeline, config, args)
         except (KeyboardInterrupt, EOFError):
             print("\nbye")
             return 0
+
+
+async def _hands_free(pipeline: Pipeline, config: Config, args: argparse.Namespace) -> int:
+    """Wait for the wake word, answer, and go back to waiting."""
+    if args.from_file is not None:
+        print("--from-file is push to talk; drop --hands-free to use it")
+        return 1
+
+    source = MicrophoneSource(
+        sample_rate=config.audio.sample_rate,
+        frame_ms=config.audio.frame_ms,
+        device=config.audio.input_device,
+    )
+    listener = Listener(
+        source,
+        wake=OpenWakeWord(config.wake_word.model, framework=config.wake_word.framework),
+        vad=SileroVAD(threshold=config.listen.vad_threshold),
+        threshold=config.wake_word.threshold,
+        start_timeout_ms=config.listen.start_timeout_ms,
+        silence_ms=config.listen.silence_ms,
+        min_utterance_ms=config.listen.min_utterance_ms,
+        max_utterance_ms=config.listen.max_utterance_ms,
+    )
+
+    print(f'say "{spoken_form(config.wake_word.model)}" and then ask (Ctrl+C to stop)')
+    async with listener:
+        async for pcm in listener.utterances():
+            # Muted for the whole turn, not only while the speaker is playing:
+            # the pauses in between are when the wake word would fire on the
+            # assistant's own last word.
+            listener.mute()
+            try:
+                turn = await pipeline.run_turn(pcm, config.audio.sample_rate, trigger="wake_word")
+            finally:
+                listener.unmute()
+
+            _report(turn)
+            if args.once:
+                return 0 if turn.ok else 1
+    return 0  # pragma: no cover - only reached if the source ends
 
 
 async def _turns(pipeline: Pipeline, config: Config, args: argparse.Namespace) -> int:
