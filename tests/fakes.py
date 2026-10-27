@@ -26,19 +26,31 @@ from chilluevar.events import Event
 from chilluevar.interfaces import Message, Tool
 
 __all__ = [
+    "QUIET",
     "SAMPLE_RATE",
+    "SPEECH",
+    "WAKE",
     "FakeAudioSource",
     "FakeLLM",
     "FakeSTT",
     "FakeSink",
     "FakeTTS",
     "FakeToolCall",
+    "FakeVAD",
+    "FakeWakeWord",
     "collect_events",
     "silence",
 ]
 
 SAMPLE_RATE = 16_000
 SAMPLE_WIDTH_BYTES = 2
+
+# Frames that say what is in them. The listener counts time in frames rather
+# than bytes, so a marker carries everything its tests need and reads as the
+# scenario it describes: WAKE, SPEECH, SPEECH, QUIET, QUIET is a sentence.
+WAKE = b"<wake>"
+SPEECH = b"<talk>"
+QUIET = b"<quiet>"
 
 
 def silence(seconds: float = 1.0, sample_rate: int = SAMPLE_RATE) -> bytes:
@@ -72,6 +84,40 @@ class FakeAudioSource:
     async def frames(self) -> AsyncIterator[bytes]:
         for frame in self._frames:
             yield frame
+
+
+class FakeWakeWord:
+    """Fires on frames that say they are the wake word.
+
+    A real detector scores every frame against a model of the word. Scoring is
+    not what the listener's tests are about: what matters is what it does the
+    frame after one fires.
+    """
+
+    def __init__(self, *, marker: bytes = WAKE, score: float = 1.0) -> None:
+        self.marker = marker
+        self.score = score
+        self.fed: list[bytes] = []
+        self.resets = 0
+
+    def feed(self, frame: bytes, sample_rate: int) -> float:
+        self.fed.append(frame)
+        return self.score if frame == self.marker else 0.0
+
+    def reset(self) -> None:
+        self.resets += 1
+
+
+class FakeVAD:
+    """Says a frame is speech when the frame says so."""
+
+    def __init__(self, *, marker: bytes = SPEECH) -> None:
+        self.marker = marker
+        self.fed: list[bytes] = []
+
+    def is_speech(self, frame: bytes, sample_rate: int) -> bool:
+        self.fed.append(frame)
+        return frame == self.marker
 
 
 class FakeSink:

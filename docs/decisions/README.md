@@ -15,3 +15,4 @@ is built this way instead of shrugging.
 | [0004](0004-satellite-mode-from-day-one.md) | Satellite mode is designed in from day one | Accepted |
 | [0005](0005-ollama-native-api-over-httpx.md) | Talk to Ollama through its native API, with `httpx` | Accepted |
 | [0006](0006-first-language-model.md) | `qwen3:8b`, with thinking off, as the first language model | Accepted |
+| [0007](0007-one-owner-for-the-microphone.md) | One owner for the microphone; the wake word detector is fed frames | Accepted, amends 0002 |
