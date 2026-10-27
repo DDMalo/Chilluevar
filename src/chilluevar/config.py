@@ -20,6 +20,7 @@ __all__ = [
     "AudioConfig",
     "Config",
     "LLMConfig",
+    "ListenConfig",
     "STTConfig",
     "TTSConfig",
     "WakeWordConfig",
@@ -44,6 +45,26 @@ class WakeWordConfig:
     # Until we train our own model (task 22) we use a bundled one.
     model: str = "hey_jarvis"
     threshold: float = 0.6
+
+
+@dataclass(slots=True)
+class ListenConfig:
+    """Where one spoken sentence begins and ends.
+
+    Separate from `wake_word` because these have nothing to do with the
+    detector: they are what turns a stream of frames into an utterance, and
+    they are what the threshold tuning in issue #8 varies.
+    """
+
+    # How long to wait for the sentence to begin after the wake word fires.
+    start_timeout_ms: int = 3_000
+    # Silence that ends a sentence. Too short cuts people off mid-thought; too
+    # long adds that much delay to every single answer.
+    silence_ms: int = 800
+    # Shorter than this is a cough, a door or a chair, not a question.
+    min_utterance_ms: int = 400
+    # A safety net against a radio left on, not a limit anyone should hit.
+    max_utterance_ms: int = 15_000
 
 
 @dataclass(slots=True)
@@ -115,6 +136,7 @@ class Config:
     offline_only: bool = True
     audio: AudioConfig = field(default_factory=AudioConfig)
     wake_word: WakeWordConfig = field(default_factory=WakeWordConfig)
+    listen: ListenConfig = field(default_factory=ListenConfig)
     stt: STTConfig = field(default_factory=STTConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
     tts: TTSConfig = field(default_factory=TTSConfig)
@@ -138,6 +160,10 @@ class Config:
             raise ValueError("satellite mode needs brain_url")
         if not 0.0 < self.wake_word.threshold <= 1.0:
             raise ValueError("wake_word.threshold must be between 0 and 1")
+        if self.listen.min_utterance_ms >= self.listen.max_utterance_ms:
+            raise ValueError("listen.min_utterance_ms must be below max_utterance_ms")
+        if self.listen.silence_ms < 1:
+            raise ValueError("listen.silence_ms must be positive")
         if self.audio.sample_rate not in {8_000, 16_000, 22_050, 44_100, 48_000}:
             raise ValueError(f"unsupported sample rate: {self.audio.sample_rate}")
         if self.llm.max_reply_words < 1:

@@ -70,10 +70,24 @@ class AudioSink(Protocol):
 
 @runtime_checkable
 class WakeWordDetector(Protocol):
-    """Listens continuously and reports when the wake word is heard."""
+    """Reports whether the wake word just ended, frame by frame.
 
-    async def listen(self) -> AsyncIterator[float]:
-        """Yield a confidence score each time the wake word is detected."""
+    It is fed audio rather than opening its own: there is one microphone, and
+    the voice activity detector and the recording buffer need the very same
+    frames. A detector that owned a source would mean opening the device twice.
+    See docs/decisions/0007-one-owner-for-the-microphone.md.
+    """
+
+    def feed(self, frame: bytes, sample_rate: int) -> float:
+        """Return the confidence that the wake word ended in this frame."""
+        ...
+
+    def reset(self) -> None:
+        """Forget the audio heard so far.
+
+        Called after a detection and after the assistant speaks, so one
+        utterance cannot trigger twice from the same buffered audio.
+        """
         ...
 
 

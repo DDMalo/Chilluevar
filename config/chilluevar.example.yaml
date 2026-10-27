@@ -25,6 +25,18 @@ wake_word:
   # Lower it if it misses you, raise it if it wakes up on its own.
   threshold: 0.6
 
+# Where one spoken sentence begins and ends.
+listen:
+  # How long to wait for you to start talking after the wake word fires.
+  start_timeout_ms: 3000
+  # Silence that ends a sentence. Too short cuts you off mid-thought, too long
+  # adds that much delay to every answer.
+  silence_ms: 800
+  # Shorter than this is a cough or a door, not a question.
+  min_utterance_ms: 400
+  # A safety net against a radio left on, not a limit you should ever hit.
+  max_utterance_ms: 15000
+
 stt:
   engine: faster-whisper
   # tiny / base / small / medium. "small" is the usual balance in Spanish;
